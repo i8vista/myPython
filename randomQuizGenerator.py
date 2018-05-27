@@ -29,7 +29,7 @@ for quizNum in range(35):
     answerKeyFile = open('capitalsquiz_answers%s.txt' % (quizNum + 1),'w')
 
     # Write out the header for the quiz.
-    quizFile.write('Name:\nData:\n\nPeriod:\n\n')
+    quizFile.write('Name:\n\nData:\n\nPeriod:\n\n')
     quizFile.write((' '*20)+'State Capitals Quiz (Form %s)' % (quizNum +1))
     quizFile.write('\n\n')
     
