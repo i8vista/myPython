@@ -161,7 +161,7 @@ def copyReg(displayFolder, reg_dict):
 
 def copyFolder(displayFolder, folder_list):
     for folder in folder_list:
-        displayPath = os.getcwd() + displayFolder + \
+        displayPath = os.getcwd() +'\\' +displayFolder + \
             re.compile(r'\\.*').search(folder).group()
         shutil.copytree(folder, displayPath)
 
