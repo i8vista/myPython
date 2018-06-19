@@ -112,6 +112,8 @@ def writeRegValue(key, regObj):
                     valueHexF = regValueFomat(regValueHexStr, regName, regType)
                 regObj.write('"%s"=hex(%s):%s' %
                              (regName, regType, valueHexF))
+            if regType == 11:
+                
             enumValue_i += 1
     except WindowsError:
         regObj.write('\n')
