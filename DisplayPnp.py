@@ -63,7 +63,7 @@ def writeRegValue(key, regObj):
                     regValueHexStr = ',00,'.join(
                         str(hex(ord(c))[2:]) for c in regValue) + ',00,00,00'
                 valueHexF = regValueFomat(regValueHexStr, regName, regType)
-                regObj.write('"%s"=hex(%s):%s' %
+                regObj.write('"%s"=hex(%x):%s' %
                              (regName, regType, valueHexF))
             if regType == 3:      # REG_BINARY
                 if regValue == None:
@@ -110,10 +110,22 @@ def writeRegValue(key, regObj):
                                         str(hex(ord(c))[2:]) for c in regValue[regValue_i]) + ',00,00,00'
                     regValueHexStr = regValueHex + ',00,00'
                     valueHexF = regValueFomat(regValueHexStr, regName, regType)
-                regObj.write('"%s"=hex(%s):%s' %
+                regObj.write('"%s"=hex(%x):%s' %
                              (regName, regType, valueHexF))
             if regType == 11:
-                
+                if regValue == 0:
+                    regValueHexStrList = ['00'] * 8
+                else:
+                    regValueHexStr = '%x' % (regValue)
+                    if len(regValueHexStr) % 2 !=0:
+                        regValueHexStr = '0' + regValueHexStr
+                    regValueHexStrList = re.compile(r'.{2}').findall(regValueHexStr)
+                    regValueHexStrList.reverse()
+                    num = 8 - len(regValueHexStrList)
+                    if num > 0:
+                        regValueHexStrList = regValueHexStrList + ['00'] * num
+                valueHexF = ','.join(regValueHexStrList)
+                regObj.write('"%s"=hex(%x):%s\n' % (regName, regType, valueHexF))
             enumValue_i += 1
     except WindowsError:
         regObj.write('\n')
@@ -189,13 +201,20 @@ os.makedirs(displayFolder)
 logging.info('Read the configuration file...')
 config = open('config.json', 'r')
 config_dict = json.load(config)
-reg_dict, folder_list, file_dict = config_dict['reg'], config_dict['folder'], config_dict['file']
-logging.info('Begin copying registry...')
-copyReg(displayFolder, reg_dict)
-logging.info('Begin copying folders...')
-copyFolder(displayFolder, folder_list)
-logging.info('Begin copying files...')
-copyFile(displayFolder, file_dict)
+if 'reg' in config_dict:
+    reg_dict = config_dict['reg']
+    logging.info('Begin copying registry...')
+    copyReg(displayFolder, reg_dict)
+elif 'folder' in config_dict:
+    folder_list = config_dict['folder']
+    logging.info('Begin copying folders...')
+    copyFolder(displayFolder, folder_list)
+elif 'file' in config_dict:
+    file_dict = config_dict['file']
+    logging.info('Begin copying files...')
+    copyFile(displayFolder, file_dict)
+else:
+    logging.info('Nothing to do')
 config.close()
 logging.info('Done!')
 
