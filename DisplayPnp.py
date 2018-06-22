@@ -10,7 +10,7 @@ import datetime
 
 
 def regValueFomat(regValueHexStr, regName, regType):
-    if regType == 2 or regType == 7:
+    if regType == 2 or regType == 7 or regType == 0:
         extraCharNum = 10
     elif regType == 3:
         extraCharNum = 7
@@ -47,6 +47,20 @@ def writeRegValue(key, regObj):
             regName, regValue, regType = winreg.EnumValue(key, enumValue_i)
             if regName == '':
                 regName = '@'
+            if regType == 0:    # REG_NONE
+                if regValue == None:
+                    regValueHexStr = ''
+                else:
+                    regValueHexStr = ''
+                    for regValue_i in range(len(regValue)):
+                        regValueHexChar = '%02x' % regValue[regValue_i]
+                        if regValue_i != len(regValue) - 1:
+                            regValueHexStr = regValueHexStr + regValueHexChar + ','
+                        else:
+                            regValueHexStr = regValueHexStr + regValueHexChar
+                valueHexF = regValueFomat(regValueHexStr, regName, regType)
+                regObj.write('"%s"=hex(%x):%s' %
+                             (regName, regType, valueHexF))
             if regType == 1:      # REG_SZ
                 regValue = regValue.replace('\\', '\\\\')
                 regValue = regValue.replace(r'"', r'\"')
@@ -56,7 +70,7 @@ def writeRegValue(key, regObj):
                     regObj.write('"%s"="%s"\n' % (regName, regValue))
             if regType == 2:      # REG_EXPAND_SZ
                 if regValue == '':
-                    regValue = '00,00'
+                    regValueHexStr = '00,00'
                 elif len(regValue) == 1:
                     regValueHexStr = str(hex(ord(regValue))[2:]) + ',00,00,00'
                 else:
@@ -67,7 +81,7 @@ def writeRegValue(key, regObj):
                              (regName, regType, valueHexF))
             if regType == 3:      # REG_BINARY
                 if regValue == None:
-                    regValue = ''
+                    regValueHexStr = ''
                 else:
                     regValueHexStr = ''
                     for regValue_i in range(len(regValue)):
@@ -76,7 +90,7 @@ def writeRegValue(key, regObj):
                             regValueHexStr = regValueHexStr + regValueHexChar + ','
                         else:
                             regValueHexStr = regValueHexStr + regValueHexChar
-                    valueHexF = regValueFomat(regValueHexStr, regName, regType)
+                valueHexF = regValueFomat(regValueHexStr, regName, regType)
                 regObj.write('"%s"=hex:%s' % (regName, valueHexF))
             if regType == 4:      # REG_DWORD
                 regValue = '%08x' % regValue
@@ -86,7 +100,7 @@ def writeRegValue(key, regObj):
                     regObj.write('"%s"=dword:%s\n' % (regName, regValue))
             if regType == 7:      # REG_MULTI_SZ
                 if regValue == []:
-                    regValue = '00,00\n'
+                    regValueHexStr = '00,00'
                 else:
                     regValueHex = ''
                     for regValue_i in range(len(regValue)):
@@ -109,10 +123,10 @@ def writeRegValue(key, regObj):
                                     ',00,'.join(
                                         str(hex(ord(c))[2:]) for c in regValue[regValue_i]) + ',00,00,00'
                     regValueHexStr = regValueHex + ',00,00'
-                    valueHexF = regValueFomat(regValueHexStr, regName, regType)
+                valueHexF = regValueFomat(regValueHexStr, regName, regType)
                 regObj.write('"%s"=hex(%x):%s' %
                              (regName, regType, valueHexF))
-            if regType == 11:
+            if regType == 11: # REG_QWORD
                 if regValue == 0:
                     regValueHexStrList = ['00'] * 8
                 else:
@@ -205,16 +219,14 @@ if 'reg' in config_dict:
     reg_dict = config_dict['reg']
     logging.info('Begin copying registry...')
     copyReg(displayFolder, reg_dict)
-elif 'folder' in config_dict:
+if 'folder' in config_dict:
     folder_list = config_dict['folder']
     logging.info('Begin copying folders...')
     copyFolder(displayFolder, folder_list)
-elif 'file' in config_dict:
+if 'file' in config_dict:
     file_dict = config_dict['file']
     logging.info('Begin copying files...')
     copyFile(displayFolder, file_dict)
-else:
-    logging.info('Nothing to do')
 config.close()
 logging.info('Done!')
 
