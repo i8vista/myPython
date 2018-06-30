@@ -10,8 +10,11 @@ def writereg(regObj, regName, regValue, regType):
     if regType == 'REG_SZ':
         regObj.write('"%s"="%s"\r\n' % (regName, regValue))
     elif regType == 'REG_DWORD':
-        d = '%08d' % int(regValue[2:])
-        regObj.write('"%s"=dword:%s\r\n' % (regName, regValue))
+        if regValue[:2] == '0x' or regValue[:2] == '0X':
+            regValue = '%08d' % int(regValue[2:])
+        else:
+            regValue = '%08d' % int(regValue)
+            regObj.write('"%s"=dword:%s\r\n' % (regName, regValue))
         # return '"%s"="%s"\r\n' % (regName, regValue)
 
 
@@ -71,6 +74,7 @@ def value2list(valueList):
 
 
 def value2reglist(valueList, reg_class_path, regObj):
+    """把字典值中的reg部分格式化为列表"""
     for i in range(len(valueList)):
         valueList[i] = valueList[i].split(',')
         valueList[i] = [elem.strip() for elem in valueList[i]]
@@ -84,7 +88,20 @@ def value2reglist(valueList, reg_class_path, regObj):
         regName = valueList[i][2]
         regValue = valueList[i][4]
         writereg(regObj, regName, regValue, regType)    
-    """把字典值中的reg部分格式化为列表"""
+    
+
+def copyfile(destination_file_name, source_file_name):
+    destination_file_path = destinationDirs[destination_file_name] + '\\' + destination_file_name
+    source_file_name = 
+
+def value2copylist(valueList):
+    """把字典值转换为拷贝列表"""
+    for i in range(len(valueList)):
+        valueList[i] = valueList[i].split(',')
+        valueList[i] = [elem.strip() for elem in valueList[i]]
+        if valueList[i][1] == '':
+            valueList[i][1] = valueList[i][0]
+        copyfile(valueList[i][0], valueList[i][1])
 
 # 把inf安装section格式化为字典
 osVer = 'NTx86'
@@ -131,11 +148,12 @@ if device_id in section_Models:
 else:
     logging.warning('can not find: ' )
 
+#解析INF DDInstall.Services部分
 for k, v in fsSectionDict.items(): 
     if re.compile('%s.NT.Services$' % device_description, re.I).search(k) != None:
-        section_AddService = value2list(v)
-        driver_ServiceName = section_AddService[0]
-        service_install_section = section_AddService[2]
+        inf_DDInstall_Services = value2list(v)
+        driver_ServiceName = inf_DDInstall_Services[0]
+        service_install_section = inf_DDInstall_Services[2]
         continue
     if re.compile('%s.NT$' % device_description, re.I).search(k) != None:
         section_DDInstall = value2Dict(v)
@@ -161,13 +179,6 @@ for k, v in section_Version.items():
         driver_DriverVersion = v[v.find(',')+1:].strip()
         continue
 
-#解析string节
-for k, v in section_Strings.items():
-    if re.compile('^%s$' % driver_ProviderVar, re.I).search(k) != None:
-        driver_Provider = v.strip('\"')
-    if re.compile('^%s$' % install_section_name, re.I).search(k) != None:
-        driver_DeviceDesc = v.strip('\"')
-
 #解析DDInstall节
 for k, v in section_DDInstall.items():
     if re.compile('Characteristics$', re.IGNORECASE).search(k) != None:
@@ -184,25 +195,68 @@ for k, v in fsSectionDict.items():
     if re.compile('^%s$' % install_addReg_section, re.I).search(k) != None:
         driver_install_addReg_section = v
 
-#解析服务
+#解析service_install_section
 for k, v in fsSectionDict.items():
     if re.compile('^%s$' % service_install_section, re.I).search(k) != None:
-        driver_service_install_section = value2Dict(v)
+        service_install_section_value = value2Dict(v)
         break
-
-for k, v in driver_service_install_section.items():        
+for k, v in service_install_section_value.items():        
     if re.compile('DisplayName$', re.IGNORECASE).search(k) != None:
-        driver_DisplayName = driver_service_install_section['DisplayName']
+        driver_DisplayName_strings = service_install_section_value['DisplayName'].strip('%')
     if re.compile('ServiceBinary$', re.IGNORECASE).search(k) != None:
-        driver_ImagePath = driver_service_install_section['ServiceBinary']
+        driver_ServiceBinary = service_install_section_value['ServiceBinary']
+        driver_ServiceBinaryMo = re.compile(r'(%.*%)(.*)').search(driver_ServiceBinary)
+        driver_ServiceBinaryGroup1 = driver_ServiceBinaryMo.group(1)
+        driver_ServiceBinaryGroup2 = driver_ServiceBinaryMo.group(2)
+        if driver_ServiceBinaryGroup1 == '%12%':
+            driver_ImagePath = '%SystemRoot%\\system32\\drivers' + driver_ServiceBinaryGroup2
     if re.compile('LoadOrderGroup$', re.IGNORECASE).search(k) != None:
-        driver_Group = driver_service_install_section['LoadOrderGroup']
+        driver_Group = service_install_section_value['LoadOrderGroup']
     if re.compile('ServiceType$', re.IGNORECASE).search(k) != None:
-        driver_Type = driver_service_install_section['ServiceType']
+        driver_Type = service_install_section_value['ServiceType']
     if re.compile('StartType$', re.IGNORECASE).search(k) != None:
-        driver_Start = driver_service_install_section['StartType']
+        driver_Start = service_install_section_value['StartType']
     if re.compile('ErrorControl$', re.IGNORECASE).search(k) != None:
-        driver_ErrorControl = driver_service_install_section['ErrorControl']
+        driver_ErrorControl = service_install_section_value['ErrorControl']
+
+#解析string节
+for k, v in section_Strings.items():
+    if re.compile('^%s$' % driver_ProviderVar, re.I).search(k) != None:
+        driver_Provider = v.strip('\"')
+    if re.compile('^%s$' % install_section_name, re.I).search(k) != None:
+        driver_DeviceDesc = v.strip('\"')
+    if re.compile('^%s$' % driver_DisplayName_strings, re.I).search(k) != None:
+        driver_DisplayName = v.strip('\"')
+
+#解析源目录SourceDisksNames
+for k, v in fsSectionDict.items():
+    if re.compile('^SourceDisksNames$', re.I).search(k) != None:
+        diskid_dict_list = value2Dict_list(v)
+        break
+diskid_dict = {}
+for k, v in diskid_dict_list.items():
+    diskid_dict[k] = v[4]
+
+#解析INF SourceDisksFiles部分
+for k, v in fsSectionDict.items():
+    if re.compile('^SourceDisksFiles$', re.I).search(k) != None:
+        
+
+#解析目标目录DestinationDirs
+for k, v in fsSectionDict.items():
+    if re.compile('^DestinationDirs$', re.I).search(k) != None:
+        destinationDirs  = value2Dict(v)
+        break
+for k, v in destinationDirs.items():
+    if v == 12:
+        v = 'system32\\drivers'
+
+#拷贝文件
+for k, v in fsSectionDict.items():
+    if re.compile('^%s$' % install_copyFile_section, re.I).search(k) != None:
+        install_copyFile_section_value = value2copylist(v)
+        break
+install_copyFile_section
 
 regObj = codecs.open('inf_%s.reg' % datetime.datetime.now().strftime(
     '%Y%m%d%H%M%S'), 'w', 'utf_16')
