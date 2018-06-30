@@ -7,7 +7,7 @@ import json
 import logging
 import datetime
 import binascii
-import win32api, win32con
+import win32api, win32con,ctypes
 # 格式化16进制字符串
 
 
@@ -22,17 +22,21 @@ def regValueFomat(regValueHexStr, regName, regType):
             extraCharNum = 5
         else:
             extraCharNum = 7
-    if 79 - len(regName) - len(regValueHexStr) - extraCharNum > 0:
+    if regName == '':
+        regNameStr = '@'
+    else:
+        regNameStr = regName 
+    if 79 - len(regNameStr) - len(regValueHexStr) - extraCharNum > 0:
         valueHexF = regValueHexStr + '\r\n'
     else:
-        if 79 - len(regName) - extraCharNum <= 5:
+        if 79 - len(regNameStr) - extraCharNum <= 5:
             number = 3
-        elif (79 - len(regName) - extraCharNum) % 3 == 0:
-            number = 79 - len(regName) - extraCharNum
-        elif (79 - len(regName) - extraCharNum) % 3 == 1:
-            number = 79 - len(regName) - extraCharNum - 1
+        elif (79 - len(regNameStr) - extraCharNum) % 3 == 0:
+            number = 79 - len(regNameStr) - extraCharNum
+        elif (79 - len(regNameStr) - extraCharNum) % 3 == 1:
+            number = 79 - len(regNameStr) - extraCharNum - 1
         else:
-            number = 79 - len(regName) - extraCharNum - 2
+            number = 79 - len(regNameStr) - extraCharNum - 2
         valueHexF = regValueHexStr[:number] + '\\\r\n'
         valueHexList = re.compile('.{1,75}').findall(
             regValueHexStr[number:])
@@ -52,13 +56,15 @@ def writeRegValue(key1, key2, regObj):
     try:
         enumValue_i = 0
         while True:
-            regName, regValue, regType = winreg.EnumValue(key1, enumValue_i)  #不用win32api.RegEnumValue是因为读取的dowrd值为负数
-            if regType == 7 and regValue != None:
-                regName, regValue, regType = win32api.RegEnumValue(key2, enumValue_i) #不用winreg.EnumValue是因为不能处理值超过4K，不能区分REG_MULTI_SZ全空和单行空情况
+            regName, regValue, regType = win32api.RegEnumValue(key2, enumValue_i) #不用winreg.EnumValue是因为不能处理值超过4K，不能区分REG_MULTI_SZ全空和单行空情况
+            if regType == 1:
+                regName, regValue, regType = winreg.EnumValue(key1, enumValue_i)  #不用win32api.RegEnumValue是因为读取REG_SZ可能有乱码
             if regName == '':
-                regName = '@'
-            regName = regName.replace('\\', '\\\\')
-            regName = regName.replace(r'"', r'\"')
+                regNameStr = '@'
+            else:
+                regNameStr = regName
+            regNameStr = regNameStr.replace('\\', '\\\\')
+            regNameStr = regNameStr.replace(r'"', r'\"')
             if regType == 0:    # REG_NONE
                 if regValue == None:
                     regValueHexStr = ''
@@ -70,28 +76,28 @@ def writeRegValue(key1, key2, regObj):
                             regValueHexStr = regValueHexStr + regValueHexChar + ','
                         else:
                             regValueHexStr = regValueHexStr + regValueHexChar
-                valueHexF = regValueFomat(regValueHexStr, regName, regType)
-                if regName == '@':
-                    regObj.write('%s=hex(%x):%s' % (regName, regType, valueHexF))
+                valueHexF = regValueFomat(regValueHexStr, regNameStr, regType)
+                if regName == '':
+                    regObj.write('%s=hex(%x):%s' % (regNameStr, regType, valueHexF))
                 else:
-                    regObj.write('"%s"=hex(%x):%s' % (regName, regType, valueHexF))
+                    regObj.write('"%s"=hex(%x):%s' % (regNameStr, regType, valueHexF))
             if regType == 1:      # REG_SZ
                 regValue = regValue.replace('\\', '\\\\')
                 regValue = regValue.replace(r'"', r'\"')
-                if regName == '@':
-                    regObj.write('%s="%s"\r\n' % (regName, regValue))
+                if regName == '':
+                    regObj.write('%s="%s"\r\n' % (regNameStr, regValue))
                 else:
-                    regObj.write('"%s"="%s"\r\n' % (regName, regValue))
+                    regObj.write('"%s"="%s"\r\n' % (regNameStr, regValue))
             if regType == 2:      # REG_EXPAND_SZ
                 if regValue == '':
                     regValueHexStr = '00,00'
                 else:
                     regValueHexStr = ','.join(re.compile(r'.{2}').findall(str(binascii.b2a_hex(regValue.encode('utf_16_le')))[2:-1])) + ',00,00'
-                valueHexF = regValueFomat(regValueHexStr, regName, regType)
-                if regName == '@':
-                    regObj.write('%s=hex(%x):%s' % (regName, regType, valueHexF))
+                valueHexF = regValueFomat(regValueHexStr, regNameStr, regType)
+                if regName == '':
+                    regObj.write('%s=hex(%x):%s' % (regNameStr, regType, valueHexF))
                 else:
-                    regObj.write('"%s"=hex(%x):%s' % (regName, regType, valueHexF))
+                    regObj.write('"%s"=hex(%x):%s' % (regNameStr, regType, valueHexF))
             if regType == 3:      # REG_BINARY
                 if regValue == None:
                     regValueHexStr = ''
@@ -103,17 +109,18 @@ def writeRegValue(key1, key2, regObj):
                             regValueHexStr = regValueHexStr + regValueHexChar + ','
                         else:
                             regValueHexStr = regValueHexStr + regValueHexChar
-                valueHexF = regValueFomat(regValueHexStr, regName, regType)
-                if regName == '@':
-                    regObj.write('%s=hex:%s' % (regName, valueHexF))
+                valueHexF = regValueFomat(regValueHexStr, regNameStr, regType)
+                if regName == '':
+                    regObj.write('%s=hex:%s' % (regNameStr, valueHexF))
                 else:
-                    regObj.write('"%s"=hex:%s' % (regName, valueHexF))
+                    regObj.write('"%s"=hex:%s' % (regNameStr, valueHexF))
             if regType == 4:      # REG_DWORD
+                regValue = ctypes.c_uint(regValue).value
                 regValue = '%08x' % regValue
-                if regName == '@':
-                    regObj.write('%s=dword:%s\r\n' % (regName, regValue))
+                if regName == '':
+                    regObj.write('%s=dword:%s\r\n' % (regNameStr, regValue))
                 else:
-                    regObj.write('"%s"=dword:%s\r\n' % (regName, regValue))
+                    regObj.write('"%s"=dword:%s\r\n' % (regNameStr, regValue))
             if regType == 7:      # REG_MULTI_SZ
                 if regValue == None:
                     regValueHexStr = ''
@@ -130,15 +137,16 @@ def writeRegValue(key1, key2, regObj):
                         else:
                             regValueHexStr = regValueHexStr + regValueHex + ',00,00,'
                     regValueHexStr = regValueHexStr + '00,00'
-                valueHexF = regValueFomat(regValueHexStr, regName, regType)
-                if regName == '@':
-                    regObj.write('%s=hex(%x):%s' % (regName, regType, valueHexF))
+                valueHexF = regValueFomat(regValueHexStr, regNameStr, regType)
+                if regName == '':
+                    regObj.write('%s=hex(%x):%s' % (regNameStr, regType, valueHexF))
                 else:
-                    regObj.write('"%s"=hex(%x):%s' % (regName, regType, valueHexF))
+                    regObj.write('"%s"=hex(%x):%s' % (regNameStr, regType, valueHexF))
             if regType == 11: # REG_QWORD
                 if regValue == 0:
                     regValueHexStrList = ['00'] * 8
                 else:
+                    regValue = ctypes.c_ulonglong(regValue).value
                     regValueHexStr = '%x' % regValue
                     if len(regValueHexStr) % 2 !=0:
                         regValueHexStr = '0' + regValueHexStr
@@ -148,10 +156,10 @@ def writeRegValue(key1, key2, regObj):
                     if num > 0:
                         regValueHexStrList = regValueHexStrList + ['00'] * num
                 valueHexF = ','.join(regValueHexStrList)
-                if regName == '@':
-                    regObj.write('%s=hex(%x):%s\r\n' % (regName, regType, valueHexF))
+                if regName == '':
+                    regObj.write('%s=hex(%x):%s\r\n' % (regNameStr, regType, valueHexF))
                 else:
-                    regObj.write('"%s"=hex(%x):%s\r\n' % (regName, regType, valueHexF))
+                    regObj.write('"%s"=hex(%x):%s\r\n' % (regNameStr, regType, valueHexF))
             enumValue_i += 1
     except Exception as e:
             # logging.warning(str(e))
